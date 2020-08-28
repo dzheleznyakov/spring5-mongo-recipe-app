@@ -59,12 +59,15 @@ public class IngredientServiceImplTest {
 
         Ingredient ingredient1 = new Ingredient();
         ingredient1.setId("1");
+        ingredient1.setRecipe(recipe);
 
         Ingredient ingredient2 = new Ingredient();
         ingredient2.setId("1");
+        ingredient2.setRecipe(recipe);
 
         Ingredient ingredient3 = new Ingredient();
         ingredient3.setId("3");
+        ingredient3.setRecipe(recipe);
 
         recipe.addIngredient(ingredient1);
         recipe.addIngredient(ingredient2);
