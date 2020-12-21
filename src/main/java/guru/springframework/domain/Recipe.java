@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -44,5 +45,12 @@ public class Recipe {
 //        ingredient.setRecipe(this);
         this.ingredients.add(ingredient);
         return this;
+    }
+
+    public Optional<Ingredient> getIngredientById(String ingredientId) {
+        return getIngredients()
+                .stream()
+                .filter(ingredient -> ingredient.getId().equals(ingredientId))
+                .findFirst();
     }
 }
