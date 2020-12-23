@@ -11,6 +11,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Mono;
 
 import static org.junit.Assert.assertEquals;
@@ -66,6 +67,9 @@ public class ImageControllerTest {
 
     @Test
     public void handleImagePost() throws Exception {
+        when(imageService.saveImageFile(anyString(), any(MultipartFile.class)))
+                .thenReturn(Mono.empty());
+
         MockMultipartFile multipartFile =
                 new MockMultipartFile("imagefile", "testing.txt", "text/plain",
                         "Spring Framework Guru".getBytes());
