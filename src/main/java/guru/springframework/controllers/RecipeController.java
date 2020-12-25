@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import reactor.core.publisher.Mono;
 
 import javax.validation.Valid;
 
@@ -36,7 +37,7 @@ public class RecipeController {
 
     @GetMapping("recipe/new")
     public String newRecipe(Model model){
-        model.addAttribute("recipe", new RecipeCommand());
+        model.addAttribute("recipe", Mono.just(new RecipeCommand()));
 
         return "recipe/recipeform";
     }
