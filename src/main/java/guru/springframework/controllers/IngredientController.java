@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import javax.validation.Valid;
@@ -33,17 +34,10 @@ public class IngredientController {
     private final RecipeService recipeService;
     private final UnitOfMeasureService unitOfMeasureService;
 
-    private WebDataBinder webDataBinder;
-
     public IngredientController(IngredientService ingredientService, RecipeService recipeService, UnitOfMeasureService unitOfMeasureService) {
         this.ingredientService = ingredientService;
         this.recipeService = recipeService;
         this.unitOfMeasureService = unitOfMeasureService;
-    }
-
-    @InitBinder("ingredient")
-    public void initBinder(WebDataBinder webDataBinder) {
-        this.webDataBinder = webDataBinder;
     }
 
     @GetMapping("/recipe/{recipeId}/ingredients")
@@ -77,8 +71,6 @@ public class IngredientController {
         //init uom
         ingredientCommand.setUom(new UnitOfMeasureCommand());
 
-        model.addAttribute("uomList", unitOfMeasureService.listAllUoms());
-
         return "recipe/ingredient/ingredientform";
     }
 
@@ -88,7 +80,6 @@ public class IngredientController {
                                          Model model) {
         model.addAttribute("ingredient", ingredientService.findByRecipeIdAndIngredientId(recipeId, id));
 
-        model.addAttribute("uomList", unitOfMeasureService.listAllUoms());
         return INGREDIENTFORM_URL;
     }
 
@@ -107,22 +98,10 @@ public class IngredientController {
                 .map(savedCommand -> {
                     log.debug("saved recipe id:" + savedCommand.getRecipeId());
                     log.debug("saved ingredient id:" + savedCommand.getId());
-                    model.addAttribute("uomList", unitOfMeasureService.listAllUoms());
-//                    return "redirect:/recipe/" + recipeId + "/ingredient/" + savedCommand.getId() + "/show";
                     return "recipe/ingredient/ingredientform";
                 })
                 .doOnError(thr -> log.error("Error saving ingredient: " + thr))
-                .onErrorResume(WebExchangeBindException.class, thr -> {
-                    model.addAttribute("uomList", unitOfMeasureService.listAllUoms());
-                    return Mono.just(INGREDIENTFORM_URL);
-                });
-//        IngredientCommand savedCommand = ingredientService.saveIngredientCommand(command)
-//                .block();
-//
-//        log.debug("saved recipe id:" + savedCommand.getRecipeId());
-//        log.debug("saved ingredient id:" + savedCommand.getId());
-//
-//        return "redirect:/recipe/" + savedCommand.getRecipeId() + "/ingredient/" + savedCommand.getId() + "/show";
+                .onErrorResume(WebExchangeBindException.class, thr -> Mono.just(INGREDIENTFORM_URL));
     }
 
     @GetMapping("recipe/{recipeId}/ingredient/{id}/delete")
@@ -133,5 +112,10 @@ public class IngredientController {
         ingredientService.deleteById(recipeId, id).block();
 
         return "redirect:/recipe/" + recipeId + "/ingredients";
+    }
+
+    @ModelAttribute("uomList")
+    public Flux<UnitOfMeasureCommand> populateUomList() {
+        return unitOfMeasureService.listAllUoms();
     }
 }
