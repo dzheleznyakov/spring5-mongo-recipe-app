@@ -1,7 +1,6 @@
 package guru.springframework.controllers;
 
 import guru.springframework.commands.IngredientCommand;
-import guru.springframework.commands.RecipeCommand;
 import guru.springframework.commands.UnitOfMeasureCommand;
 import guru.springframework.services.IngredientService;
 import guru.springframework.services.RecipeService;
@@ -9,10 +8,17 @@ import guru.springframework.services.UnitOfMeasureService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.support.WebExchangeBindException;
+import reactor.core.publisher.Mono;
+
+import javax.validation.Valid;
+import java.util.Objects;
 
 /**
  * Created by jt on 6/28/17.
@@ -20,10 +26,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 @Slf4j
 @Controller
 public class IngredientController {
+    private static final String INGREDIENTFORM_URL = "recipe/ingredient/ingredientform";
+    private static final String INGREDIENTS_SHOW = "recipe/ingredient/show";
 
     private final IngredientService ingredientService;
     private final RecipeService recipeService;
     private final UnitOfMeasureService unitOfMeasureService;
+
+    private WebDataBinder webDataBinder;
 
     public IngredientController(IngredientService ingredientService, RecipeService recipeService, UnitOfMeasureService unitOfMeasureService) {
         this.ingredientService = ingredientService;
@@ -31,8 +41,13 @@ public class IngredientController {
         this.unitOfMeasureService = unitOfMeasureService;
     }
 
+    @InitBinder("ingredient")
+    public void initBinder(WebDataBinder webDataBinder) {
+        this.webDataBinder = webDataBinder;
+    }
+
     @GetMapping("/recipe/{recipeId}/ingredients")
-    public String listIngredients(@PathVariable String recipeId, Model model){
+    public String listIngredients(@PathVariable String recipeId, Model model) {
         log.debug("Getting ingredient list for recipe id: " + recipeId);
 
         // use command object to avoid lazy load errors in Thymeleaf.
@@ -47,11 +62,11 @@ public class IngredientController {
                                        Model model
     ) {
         model.addAttribute("ingredient", ingredientService.findByRecipeIdAndIngredientId(recipeId, id));
-        return "recipe/ingredient/show";
+        return INGREDIENTS_SHOW;
     }
 
     @GetMapping("recipe/{recipeId}/ingredient/new")
-    public String newRecipe(@PathVariable String recipeId, Model model){
+    public String newRecipe(@PathVariable String recipeId, Model model) {
         //todo raise exception if null
 
         //need to return back parent id for hidden form property
@@ -62,34 +77,57 @@ public class IngredientController {
         //init uom
         ingredientCommand.setUom(new UnitOfMeasureCommand());
 
-        model.addAttribute("uomList",  unitOfMeasureService.listAllUoms());
+        model.addAttribute("uomList", unitOfMeasureService.listAllUoms());
 
         return "recipe/ingredient/ingredientform";
     }
 
     @GetMapping("recipe/{recipeId}/ingredient/{id}/update")
     public String updateRecipeIngredient(@PathVariable String recipeId,
-                                         @PathVariable String id, Model model){
+                                         @PathVariable String id,
+                                         Model model) {
         model.addAttribute("ingredient", ingredientService.findByRecipeIdAndIngredientId(recipeId, id));
 
         model.addAttribute("uomList", unitOfMeasureService.listAllUoms());
-        return "recipe/ingredient/ingredientform";
+        return INGREDIENTFORM_URL;
     }
 
     @PostMapping("recipe/{recipeId}/ingredient")
-    public String saveOrUpdate(@ModelAttribute IngredientCommand command){
-        IngredientCommand savedCommand = ingredientService.saveIngredientCommand(command)
-                .block();
-
-        log.debug("saved recipe id:" + savedCommand.getRecipeId());
-        log.debug("saved ingredient id:" + savedCommand.getId());
-
-        return "redirect:/recipe/" + savedCommand.getRecipeId() + "/ingredient/" + savedCommand.getId() + "/show";
+    public Mono<String> saveOrUpdate(
+            @Valid @ModelAttribute("ingredient") Mono<IngredientCommand> command,
+            @PathVariable("recipeId") String recipeId,
+            Model model
+    ) {
+        return command
+                .map(ingredientCommand -> {
+                    ingredientCommand.setRecipeId(recipeId);
+                    return ingredientCommand;
+                })
+                .flatMap(ingredientService::saveIngredientCommand)
+                .map(savedCommand -> {
+                    log.debug("saved recipe id:" + savedCommand.getRecipeId());
+                    log.debug("saved ingredient id:" + savedCommand.getId());
+                    model.addAttribute("uomList", unitOfMeasureService.listAllUoms());
+//                    return "redirect:/recipe/" + recipeId + "/ingredient/" + savedCommand.getId() + "/show";
+                    return "recipe/ingredient/ingredientform";
+                })
+                .doOnError(thr -> log.error("Error saving ingredient: " + thr))
+                .onErrorResume(WebExchangeBindException.class, thr -> {
+                    model.addAttribute("uomList", unitOfMeasureService.listAllUoms());
+                    return Mono.just(INGREDIENTFORM_URL);
+                });
+//        IngredientCommand savedCommand = ingredientService.saveIngredientCommand(command)
+//                .block();
+//
+//        log.debug("saved recipe id:" + savedCommand.getRecipeId());
+//        log.debug("saved ingredient id:" + savedCommand.getId());
+//
+//        return "redirect:/recipe/" + savedCommand.getRecipeId() + "/ingredient/" + savedCommand.getId() + "/show";
     }
 
     @GetMapping("recipe/{recipeId}/ingredient/{id}/delete")
     public String deleteIngredient(@PathVariable String recipeId,
-                                   @PathVariable String id){
+                                   @PathVariable String id) {
 
         log.debug("deleting ingredient id:" + id);
         ingredientService.deleteById(recipeId, id).block();

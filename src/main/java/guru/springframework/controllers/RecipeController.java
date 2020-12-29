@@ -27,16 +27,16 @@ public class RecipeController {
     private static final String RECIPE_RECIPEFORM_URL = "recipe/recipeform";
     private final RecipeService recipeService;
 
-    private WebDataBinder webDataBinder;
+//    private WebDataBinder webDataBinder;
 
     public RecipeController(RecipeService recipeService) {
         this.recipeService = recipeService;
     }
 
-    @InitBinder
-    public void initBinder(WebDataBinder webDataBinder) {
-        this.webDataBinder = webDataBinder;
-    }
+//    @InitBinder
+//    public void initBinder(WebDataBinder webDataBinder) {
+//        this.webDataBinder = webDataBinder;
+//    }
 
     @GetMapping("/recipe/{id}/show")
     public String showById(@PathVariable String id, Model model) {
