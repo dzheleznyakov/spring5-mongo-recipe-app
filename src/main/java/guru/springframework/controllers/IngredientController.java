@@ -125,7 +125,6 @@ public class IngredientController {
                                 return addNewIngredient(ingredientCommand, recipe, newIngredient);
                             });
                 })
-//                .map(recipeToRecipeCommand::convert)
                 .flatMap(recipeService::save)
                 .map(savedCommand -> {
                     log.debug("saved recipe id: " + savedCommand.getId());
