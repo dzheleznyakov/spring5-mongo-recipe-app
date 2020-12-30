@@ -2,15 +2,17 @@ package guru.springframework.controllers;
 
 import guru.springframework.commands.IngredientCommand;
 import guru.springframework.commands.UnitOfMeasureCommand;
+import guru.springframework.converters.IngredientCommandToIngredient;
+import guru.springframework.converters.RecipeToRecipeCommand;
+import guru.springframework.domain.Ingredient;
+import guru.springframework.domain.Recipe;
 import guru.springframework.services.IngredientService;
 import guru.springframework.services.RecipeService;
 import guru.springframework.services.UnitOfMeasureService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +22,7 @@ import reactor.core.publisher.Mono;
 
 import javax.validation.Valid;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Created by jt on 6/28/17.
@@ -33,11 +36,20 @@ public class IngredientController {
     private final IngredientService ingredientService;
     private final RecipeService recipeService;
     private final UnitOfMeasureService unitOfMeasureService;
+    private final IngredientCommandToIngredient ingredientCommandToIngredient;
+    private final RecipeToRecipeCommand recipeToRecipeCommand;
 
-    public IngredientController(IngredientService ingredientService, RecipeService recipeService, UnitOfMeasureService unitOfMeasureService) {
+    public IngredientController(
+            IngredientService ingredientService,
+            RecipeService recipeService,
+            UnitOfMeasureService unitOfMeasureService,
+            IngredientCommandToIngredient ingredientCommandToIngredient,
+            RecipeToRecipeCommand recipeToRecipeCommand) {
         this.ingredientService = ingredientService;
         this.recipeService = recipeService;
         this.unitOfMeasureService = unitOfMeasureService;
+        this.ingredientCommandToIngredient = ingredientCommandToIngredient;
+        this.recipeToRecipeCommand = recipeToRecipeCommand;
     }
 
     @GetMapping("/recipe/{recipeId}/ingredients")
@@ -89,19 +101,53 @@ public class IngredientController {
             @PathVariable("recipeId") String recipeId,
             Model model
     ) {
+        AtomicReference<String> ingredientId = new AtomicReference<>();
         return command
                 .map(ingredientCommand -> {
                     ingredientCommand.setRecipeId(recipeId);
+                    ingredientId.set(ingredientCommand.getId());
                     return ingredientCommand;
                 })
-                .flatMap(ingredientService::saveIngredientCommand)
+                .zipWith(recipeService.findById(recipeId))
+                .flatMap(zipped -> {
+                    IngredientCommand ingredientCommand = zipped.getT1();
+                    Recipe recipe = zipped.getT2();
+                    return recipe.getIngredients()
+                            .stream()
+                            .filter(ingredient -> Objects.equals(ingredient.getId(), ingredientCommand.getId()))
+                            .findFirst()
+                            .map(ingredient -> {
+                                updateIngredient(ingredientCommand, ingredient);
+                                return Mono.just(recipe);
+                            })
+                            .orElseGet(() -> {
+                                Ingredient newIngredient = ingredientCommandToIngredient.convert(ingredientCommand);
+                                return addNewIngredient(ingredientCommand, recipe, newIngredient);
+                            });
+                })
+//                .map(recipeToRecipeCommand::convert)
+                .flatMap(recipeService::save)
                 .map(savedCommand -> {
-                    log.debug("saved recipe id:" + savedCommand.getRecipeId());
-                    log.debug("saved ingredient id:" + savedCommand.getId());
-                    return "recipe/ingredient/ingredientform";
+                    log.debug("saved recipe id: " + savedCommand.getId());
+                    return "redirect:/recipe/" + recipeId + "/ingredients";
                 })
                 .doOnError(thr -> log.error("Error saving ingredient: " + thr))
                 .onErrorResume(WebExchangeBindException.class, thr -> Mono.just(INGREDIENTFORM_URL));
+    }
+
+    private void updateIngredient(IngredientCommand ingredientCommand, Ingredient ingredient) {
+        ingredient.setId(ingredientCommand.getId());
+        ingredient.setDescription(ingredientCommand.getDescription());
+        ingredient.setAmount(ingredientCommand.getAmount());
+    }
+
+    private Mono<Recipe> addNewIngredient(IngredientCommand ingredientCommand, Recipe recipe, Ingredient newIngredient) {
+        return unitOfMeasureService.findById(ingredientCommand.getUom().getId())
+                .map(uom -> {
+                    newIngredient.setUom(uom);
+                    recipe.addIngredient(newIngredient);
+                    return recipe;
+                });
     }
 
     @GetMapping("recipe/{recipeId}/ingredient/{id}/delete")

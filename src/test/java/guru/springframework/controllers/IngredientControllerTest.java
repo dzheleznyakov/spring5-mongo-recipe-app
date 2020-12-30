@@ -3,6 +3,9 @@ package guru.springframework.controllers;
 import guru.springframework.commands.IngredientCommand;
 import guru.springframework.commands.RecipeCommand;
 import guru.springframework.commands.UnitOfMeasureCommand;
+import guru.springframework.converters.IngredientCommandToIngredient;
+import guru.springframework.converters.RecipeToRecipeCommand;
+import guru.springframework.converters.UnitOfMeasureCommandToUnitOfMeasure;
 import guru.springframework.services.IngredientService;
 import guru.springframework.services.RecipeService;
 import guru.springframework.services.UnitOfMeasureService;
@@ -38,6 +41,9 @@ public class IngredientControllerTest {
     @Mock
     RecipeService recipeService;
 
+    @Mock
+    RecipeToRecipeCommand recipeToRecipeCommand;
+
     IngredientController controller;
 
     MockMvc mockMvc;
@@ -46,7 +52,12 @@ public class IngredientControllerTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        controller = new IngredientController(ingredientService, recipeService, unitOfMeasureService);
+        controller = new IngredientController(
+                ingredientService,
+                recipeService,
+                unitOfMeasureService,
+                new IngredientCommandToIngredient(new UnitOfMeasureCommandToUnitOfMeasure()),
+                recipeToRecipeCommand);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 

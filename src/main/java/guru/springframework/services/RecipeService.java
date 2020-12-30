@@ -19,4 +19,6 @@ public interface RecipeService {
     Mono<RecipeCommand> saveRecipeCommand(RecipeCommand command);
 
     Mono<Void> deleteById(String idToDelete);
+
+    Mono<Recipe> save(Recipe recipe);
 }
